@@ -10,8 +10,6 @@ const client = new Client({
     ],
 });
 
-// Bot Token
- // Replace with your bot token
 
 
 // Command to start spamming
