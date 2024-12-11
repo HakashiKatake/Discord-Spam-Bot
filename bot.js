@@ -1,31 +1,22 @@
-const { Client, GatewayIntentBits } = require('discord.js');
 require('dotenv').config();
+const { Client, Intents } = require('discord.js');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const ytdl = require('ytdl-core');
+const youtube = require('youtube-sr').default;
 
-// Create a new client instance
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // Enables reading message content
-    ],
-});
-
-
-
-
-// Command to start spamming
-let spammingIntervals = new Map(); // To keep track of active spamming tasks
+const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_VOICE_STATES, Intents.FLAGS.GUILD_MESSAGES] });
+const queue = new Map();
 
 client.once('ready', () => {
-    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`${client.user.tag} is online!`);
 });
 
 client.on('messageCreate', async (message) => {
+    if (!message.content.startsWith('!') || message.author.bot) return;
+
     if (message.author.bot) return;
 
-    const args = message.content.split(' ');
-
-    if (args[0] === '!start') {
+    if (args[0] === 'start') {
         if (args.length < 3) {
             message.channel.send('Usage: `!start <@user> <message>`');
             return;
@@ -61,7 +52,7 @@ client.on('messageCreate', async (message) => {
         spammingIntervals.set(targetUserId, intervalId);
     }
 
-    if (args[0] === '!stop') {
+    if (args[0] === 'stop') {
         if (args.length < 2) {
             message.channel.send('Usage: `!stop <@user>`');
             return;
@@ -79,66 +70,145 @@ client.on('messageCreate', async (message) => {
         spammingIntervals.delete(targetUserId);
         message.channel.send(`Stopped spam for <@${targetUserId}>.`);
     }
+    const args = message.content.slice(1).split(' ');
+    const command = args.shift().toLowerCase();
 
-    if (message.content.startsWith('!ban')) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('Mention someone to ban!');
-        message.channel.send(`🚨 ${user.tag} is being banned... 🚨`)
-            .then(() => setTimeout(() => message.channel.send(`Actually, just kidding! 😂`), 3000));
+    const serverQueue = queue.get(message.guild.id);
+
+    switch (command) {
+        case 'join':
+            join(message, serverQueue);
+            break;
+        case 'play':
+            playMusic(message, args, serverQueue);
+            break;
+        case 'pause':
+            pauseMusic(message, serverQueue);
+            break;
+        case 'resume':
+            resumeMusic(message, serverQueue);
+            break;
+        case 'stop':
+            stopMusic(message, serverQueue);
+            break;
+        case 'leave':
+            leaveChannel(message, serverQueue);
+            break;
+        case 'queue':
+            showQueue(message, serverQueue);
+            break;
+        default:
+            message.channel.send('Unknown command.');
     }
-
-    const echoUsers = new Map();
-
-    if (message.content.startsWith('!say')) {
-    const user = message.mentions.users.first();
-    if (!user) return message.reply('Mention someone to echo!');
-    if (echoUsers.has(user.id)) {
-        echoUsers.delete(user.id);
-        return message.reply(`Stopped echoing ${user.tag}.`);
-    }
-    echoUsers.set(user.id, Date.now());
-    message.reply(`Started echoing ${user.tag}!`);
-    }
-
-    client.on('messageCreate', msg => {
-    if (echoUsers.has(msg.author.id)) {
-        const startTime = echoUsers.get(msg.author.id);
-        if (Date.now() - startTime > 60000) { // Stops after 1 minute
-            echoUsers.delete(msg.author.id);
-        } else {
-            msg.channel.send(msg.content); // Echoes the message
-        }
-    }
-    });
-
-    const flipText = (text) => {
-        const chars = {
-            a: 'ɐ', b: 'q', c: 'ɔ', d: 'p', e: 'ǝ', f: 'ɟ', g: 'ƃ', h: 'ɥ', i: 'ı', 
-            j: 'ɾ', k: 'ʞ', l: 'ʃ', m: 'ɯ', n: 'u', o: 'o', p: 'd', q: 'b', r: 'ɹ',
-            s: 's', t: 'ʇ', u: 'n', v: 'ʌ', w: 'ʍ', x: 'x', y: 'ʎ', z: 'z',
-            A: '∀', B: '𐐒', C: 'Ɔ', D: '◖', E: 'Ǝ', F: 'Ⅎ', G: '⅁', H: 'H', I: 'I',
-            J: 'ſ', K: '⋊', L: '⅃', M: 'W', N: 'ᴎ', O: 'O', P: 'Ԁ', Q: 'Ὁ', R: 'ᴚ',
-            S: 'S', T: '⊥', U: '∩', V: 'Λ', W: 'M', X: 'X', Y: '⅄', Z: 'Z', 
-            1: 'Ɩ', 2: 'ᄅ', 3: 'Ɛ', 4: 'ㄣ', 5: 'ϛ', 6: '9', 7: 'ㄥ', 8: '8', 9: '6', 0: '0',
-            '.': '˙', ',': "'", "'": ',', '"': ',', '_': '‾', '&': '⅋', '?': '¿', '!': '¡',
-        };
-        return text.split('').reverse().map(c => chars[c] || c).join('');
-    };
-    
-    if (message.content.startsWith('!invert')) {
-        const args = message.content.split(' ').slice(1);
-        const user = message.mentions.users.first();
-        if (!user || args.length < 2) return message.reply('Usage: !invert <@user> <message>');
-        const invertedMessage = flipText(args.slice(1).join(' '));
-        user.send(`🔄 ${invertedMessage}`)
-            .then(() => message.reply(`Inverted the message for ${user.tag}!`))
-            .catch(err => message.reply('Could not send the inverted message.'));
-    }
-    
-
-    
 });
 
-// Log in the bot
+// Functions for Music Commands
+
+async function join(message, serverQueue) {
+    const channel = message.member.voice.channel;
+    if (!channel) return message.reply('You need to join a voice channel first!');
+    const connection = joinVoiceChannel({
+        channelId: channel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+    });
+    message.reply(`Joined ${channel.name}!`);
+    if (!serverQueue) {
+        queue.set(message.guild.id, {
+            connection,
+            songs: [],
+            player: createAudioPlayer(),
+        });
+    }
+}
+
+async function playMusic(message, args, serverQueue) {
+    const query = args.join(' ');
+    if (!query) return message.reply('Provide a song name or YouTube URL.');
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) return message.reply('You need to be in a voice channel!');
+
+    const songInfo = await youtube.searchOne(query);
+    if (!songInfo) return message.reply('Could not find the song.');
+
+    const song = {
+        title: songInfo.title,
+        url: `https://www.youtube.com/watch?v=${songInfo.id}`,
+    };
+
+    if (!serverQueue) {
+        const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: message.guild.id,
+            adapterCreator: message.guild.voiceAdapterCreator,
+        });
+        const player = createAudioPlayer();
+        queue.set(message.guild.id, { connection, songs: [song], player });
+
+        playNext(message.guild.id);
+
+        connection.subscribe(player);
+        message.reply(`Playing: **${song.title}**`);
+    } else {
+        serverQueue.songs.push(song);
+        message.reply(`Added to queue: **${song.title}**`);
+    }
+}
+
+function playNext(guildId) {
+    const serverQueue = queue.get(guildId);
+    if (!serverQueue || serverQueue.songs.length === 0) {
+        queue.delete(guildId);
+        return;
+    }
+
+    const song = serverQueue.songs.shift();
+    const stream = ytdl(song.url, { filter: 'audioonly' });
+    const resource = createAudioResource(stream);
+
+    serverQueue.player.play(resource);
+    serverQueue.player.on(AudioPlayerStatus.Idle, () => playNext(guildId));
+    serverQueue.connection.subscribe(serverQueue.player);
+}
+
+function pauseMusic(message, serverQueue) {
+    if (!serverQueue || serverQueue.player.state.status !== AudioPlayerStatus.Playing) {
+        return message.reply('No music is playing.');
+    }
+    serverQueue.player.pause();
+    message.reply('Paused the music.');
+}
+
+function resumeMusic(message, serverQueue) {
+    if (!serverQueue || serverQueue.player.state.status !== AudioPlayerStatus.Paused) {
+        return message.reply('The music is not paused.');
+    }
+    serverQueue.player.unpause();
+    message.reply('Resumed the music.');
+}
+
+function stopMusic(message, serverQueue) {
+    if (!serverQueue) return message.reply('No music is playing.');
+    serverQueue.songs = [];
+    serverQueue.player.stop();
+    message.reply('Stopped the music.');
+}
+
+function leaveChannel(message, serverQueue) {
+    if (!serverQueue) return message.reply('I am not in a voice channel.');
+    serverQueue.connection.destroy();
+    queue.delete(message.guild.id);
+    message.reply('Left the voice channel.');
+}
+
+function showQueue(message, serverQueue) {
+    if (!serverQueue || serverQueue.songs.length === 0) {
+        return message.reply('The queue is empty.');
+    }
+    const songList = serverQueue.songs.map((song, index) => `${index + 1}. ${song.title}`).join('\n');
+    message.reply(`**Queue:**\n${songList}`);
+}
+
 client.login(process.env.DISCORD_TOKEN);
+
 
