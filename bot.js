@@ -1,10 +1,16 @@
 require('dotenv').config();
-const { Client, Intents } = require('discord.js');
+const { Client, GatewayIntentsBits } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const youtube = require('youtube-sr').default;
 
-const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_VOICE_STATES, Intents.FLAGS.GUILD_MESSAGES] });
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildVoiceStates, 
+        GatewayIntentBits.GuildMessages
+    ] 
+});
 const queue = new Map();
 
 client.once('ready', () => {
