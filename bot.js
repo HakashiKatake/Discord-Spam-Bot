@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-
+require('dotenv').config();
 
 // Create a new client instance
 const client = new Client({
@@ -9,6 +9,7 @@ const client = new Client({
         GatewayIntentBits.MessageContent, // Enables reading message content
     ],
 });
+
 
 
 
@@ -78,6 +79,14 @@ client.on('messageCreate', async (message) => {
         spammingIntervals.delete(targetUserId);
         message.channel.send(`Stopped spam for <@${targetUserId}>.`);
     }
+
+    if (message.content.startsWith('!ban')) {
+        const user = message.mentions.users.first();
+        if (!user) return message.reply('Mention someone to ban!');
+        message.channel.send(`🚨 ${user.tag} is being banned... 🚨`)
+            .then(() => setTimeout(() => message.channel.send(`Actually, just kidding! 😂`), 3000));
+    }
+    
 });
 
 // Log in the bot
