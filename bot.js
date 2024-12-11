@@ -20,9 +20,7 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
     if (!message.content.startsWith('!') || message.author.bot) return;
 
-    if (message.author.bot) return;
-
-    if (args[0] === 'start') {
+    if (args[0] === '!start') {
         if (args.length < 3) {
             message.channel.send('Usage: `!start <@user> <message>`');
             return;
@@ -58,7 +56,7 @@ client.on('messageCreate', async (message) => {
         spammingIntervals.set(targetUserId, intervalId);
     }
 
-    if (args[0] === 'stop') {
+    if (args[0] === '!stop') {
         if (args.length < 2) {
             message.channel.send('Usage: `!stop <@user>`');
             return;
